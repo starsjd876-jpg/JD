@@ -1,0 +1,1086 @@
+name: Build JEDI APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Generate JEDI Android Project
+        run: |
+          mkdir -p gradle/wrapper
+          mkdir -p app/src/main/java/com/fahad/jedi/data
+          mkdir -p app/src/main/java/com/fahad/jedi/agent
+          mkdir -p app/src/main/java/com/fahad/jedi/research
+          mkdir -p app/src/main/java/com/fahad/jedi/voice
+          mkdir -p app/src/main/java/com/fahad/jedi/ui
+          mkdir -p app/src/main/res/layout
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
+
+          cat << 'EOF' > settings.gradle
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "JEDI"
+          include ':app'
+          EOF
+
+          cat << 'EOF' > build.gradle
+          plugins {
+              id 'com.android.application' version '8.3.2' apply false
+          }
+          EOF
+
+          cat << 'EOF' > gradle.properties
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          EOF
+
+          cat << 'EOF' > app/build.gradle
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.fahad.jedi'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.fahad.jedi"
+                  minSdk 26
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0.0"
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+              implementation 'com.google.android.material:material:1.11.0'
+              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+              implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+              implementation 'org.json:json:20240303'
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.fahad.jedi">
+
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.CAMERA" />
+              <uses-permission android:name="android.permission.READ_CONTACTS" />
+              <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+              <application
+                  android:name=".JediApp"
+                  android:allowBackup="true"
+                  android:icon="@android:drawable/ic_dialog_info"
+                  android:label="JEDI"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.Jedi.Dark">
+
+                  <activity
+                      android:name=".ui.MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="portrait">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <activity
+                      android:name=".ui.ChatActivity"
+                      android:exported="false"
+                      android:windowSoftInputMode="adjustResize" />
+
+                  <activity
+                      android:name=".ui.SettingsActivity"
+                      android:exported="false" />
+
+              </application>
+          </manifest>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/values/colors.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="bg_dark">#050811</color>
+              <color name="bg_surface">#0D1527</color>
+              <color name="cyan_primary">#00E5FF</color>
+              <color name="cyan_glow">#3300E5FF</color>
+              <color name="blue_secondary">#0077FE</color>
+              <color name="accent_error">#FF3B30</color>
+              <color name="text_primary">#FFFFFF</color>
+              <color name="text_secondary">#8E9BAE</color>
+          </resources>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/values/styles.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="Theme.Jedi.Dark" parent="Theme.MaterialComponents.NoActionBar">
+                  <item name="colorPrimary">@color/cyan_primary</item>
+                  <item name="colorPrimaryVariant">@color/blue_secondary</item>
+                  <item name="colorOnPrimary">@color/bg_dark</item>
+                  <item name="android:windowBackground">@color/bg_dark</item>
+                  <item name="android:statusBarColor">@color/bg_dark</item>
+                  <item name="android:navigationBarColor">@color/bg_dark</item>
+              </style>
+          </resources>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/values/strings.xml
+          <resources>
+              <string name="app_name">JEDI</string>
+          </resources>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/drawable/bg_mic_button.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <ripple xmlns:android="http://schemas.android.com/apk/res/android"
+              android:color="@color/cyan_glow">
+              <item>
+                  <shape android:shape="oval">
+                      <solid android:color="@color/bg_surface" />
+                      <stroke android:width="2dp" android:color="@color/cyan_primary" />
+                  </shape>
+              </item>
+          </ripple>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/layout/activity_main.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:app="http://schemas.android.com/apk/res-auto"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@color/bg_dark">
+
+              <ImageButton
+                  android:id="@+id/btnSettings"
+                  android:layout_width="48dp"
+                  android:layout_height="48dp"
+                  android:layout_margin="16dp"
+                  android:background="?attr/selectableItemBackgroundBorderless"
+                  android:src="@android:drawable/ic_menu_manage"
+                  app:tint="@color/text_secondary"
+                  app:layout_constraintTop_toTopOf="parent"
+                  app:layout_constraintEnd_toEndOf="parent" />
+
+              <com.fahad.jedi.ui.OrbView
+                  android:id="@+id/orbView"
+                  android:layout_width="0dp"
+                  android:layout_height="0dp"
+                  app:layout_constraintDimensionRatio="1:1"
+                  app:layout_constraintTop_toTopOf="parent"
+                  app:layout_constraintBottom_toTopOf="@+id/txtStatus"
+                  app:layout_constraintStart_toStartOf="parent"
+                  app:layout_constraintEnd_toEndOf="parent"
+                  app:layout_constraintWidth_percent="0.85" />
+
+              <TextView
+                  android:id="@+id/txtStatus"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:layout_marginBottom="32dp"
+                  android:text="JEDI Standby"
+                  android:textColor="@color/text_secondary"
+                  android:textSize="14sp"
+                  app:layout_constraintBottom_toTopOf="@+id/btnMic"
+                  app:layout_constraintStart_toStartOf="parent"
+                  app:layout_constraintEnd_toEndOf="parent" />
+
+              <ImageButton
+                  android:id="@+id/btnMic"
+                  android:layout_width="76dp"
+                  android:layout_height="76dp"
+                  android:layout_marginBottom="48dp"
+                  android:background="@drawable/bg_mic_button"
+                  android:src="@android:drawable/ic_btn_speak_now"
+                  app:tint="@color/cyan_primary"
+                  app:layout_constraintBottom_toBottomOf="parent"
+                  app:layout_constraintStart_toStartOf="parent"
+                  app:layout_constraintEnd_toEndOf="parent" />
+
+              <ImageButton
+                  android:id="@+id/btnOpenChat"
+                  android:layout_width="52dp"
+                  android:layout_height="52dp"
+                  android:layout_marginEnd="32dp"
+                  android:background="?attr/selectableItemBackgroundBorderless"
+                  android:src="@android:drawable/sym_action_chat"
+                  app:tint="@color/cyan_primary"
+                  app:layout_constraintTop_toTopOf="@+id/btnMic"
+                  app:layout_constraintBottom_toBottomOf="@+id/btnMic"
+                  app:layout_constraintEnd_toEndOf="parent" />
+
+          </androidx.constraintlayout.widget.ConstraintLayout>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/layout/activity_chat.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:app="http://schemas.android.com/apk/res-auto"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@color/bg_dark">
+
+              <androidx.recyclerview.widget.RecyclerView
+                  android:id="@+id/recyclerMessages"
+                  android:layout_width="match_parent"
+                  android:layout_height="0dp"
+                  android:padding="12dp"
+                  app:layout_constraintTop_toTopOf="parent"
+                  app:layout_constraintBottom_toTopOf="@+id/inputBar" />
+
+              <LinearLayout
+                  android:id="@+id/inputBar"
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="horizontal"
+                  android:background="@color/bg_surface"
+                  android:padding="8dp"
+                  android:gravity="center_vertical"
+                  app:layout_constraintBottom_toBottomOf="parent">
+
+                  <ImageButton
+                      android:id="@+id/btnAttach"
+                      android:layout_width="44dp"
+                      android:layout_height="44dp"
+                      android:background="?attr/selectableItemBackgroundBorderless"
+                      android:src="@android:drawable/ic_input_add"
+                      app:tint="@color/cyan_primary" />
+
+                  <EditText
+                      android:id="@+id/editChatInput"
+                      android:layout_width="0dp"
+                      android:layout_height="wrap_content"
+                      android:layout_weight="1"
+                      android:background="@null"
+                      android:hint="Type command or message..."
+                      android:textColor="@color/text_primary"
+                      android:textColorHint="@color/text_secondary"
+                      android:paddingHorizontal="10dp" />
+
+                  <ImageButton
+                      android:id="@+id/btnSend"
+                      android:layout_width="44dp"
+                      android:layout_height="44dp"
+                      android:background="?attr/selectableItemBackgroundBorderless"
+                      android:src="@android:drawable/ic_menu_send"
+                      app:tint="@color/cyan_primary" />
+              </LinearLayout>
+
+          </androidx.constraintlayout.widget.ConstraintLayout>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/layout/item_chat_message.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="vertical"
+              android:paddingVertical="4dp">
+
+              <TextView
+                  android:id="@+id/txtSender"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:textSize="11sp"
+                  android:textColor="@color/text_secondary"
+                  android:layout_marginHorizontal="8dp" />
+
+              <TextView
+                  android:id="@+id/txtBody"
+                  android:layout_width="wrap_content"
+                  android:layout_height="wrap_content"
+                  android:padding="12dp"
+                  android:textSize="14sp"
+                  android:textColor="@color/text_primary"
+                  android:background="@color/bg_surface"
+                  android:layout_marginHorizontal="4dp"
+                  android:maxWidth="300dp" />
+          </LinearLayout>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/layout/activity_settings.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@color/bg_dark"
+              android:padding="16dp">
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="vertical">
+
+                  <TextView
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="JEDI Security &amp; Control"
+                      android:textColor="@color/cyan_primary"
+                      android:textSize="20sp"
+                      android:textStyle="bold"
+                      android:layout_marginBottom="24dp" />
+
+                  <com.google.android.material.switchmaterial.SwitchMaterial
+                      android:id="@+id/switchAutomation"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:text="Enable Device Automation"
+                      android:textColor="@color/text_primary"
+                      android:checked="true" />
+
+                  <TextView
+                      android:layout_width="wrap_content"
+                      android:layout_height="wrap_content"
+                      android:text="Gemini API Key"
+                      android:layout_marginTop="16dp"
+                      android:textColor="@color/text_primary" />
+
+                  <EditText
+                      android:id="@+id/editApiKey"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:hint="Paste Gemini Key here..."
+                      android:textColorHint="@color/text_secondary"
+                      android:textColor="@color/text_primary"
+                      android:inputType="textPassword"
+                      android:layout_marginBottom="16dp" />
+
+                  <Button
+                      android:id="@+id/btnSaveSettings"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:text="Save Configuration"
+                      android:backgroundTint="@color/cyan_primary"
+                      android:textColor="@color/bg_dark" />
+
+              </LinearLayout>
+          </ScrollView>
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/JediApp.java
+          package com.fahad.jedi;
+          import android.app.Application;
+          import com.fahad.jedi.data.JediDatabaseHelper;
+
+          public class JediApp extends Application {
+              @Override
+              public void onCreate() {
+                  super.onCreate();
+                  new Thread(() -> {
+                      JediDatabaseHelper db = new JediDatabaseHelper(this);
+                      db.pruneChatHistory(7);
+                  }).start();
+              }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/data/JediDatabaseHelper.java
+          package com.fahad.jedi.data;
+
+          import android.content.ContentValues;
+          import android.content.Context;
+          import android.database.Cursor;
+          import android.database.sqlite.SQLiteDatabase;
+          import android.database.sqlite.SQLiteOpenHelper;
+          import java.util.ArrayList;
+          import java.util.List;
+
+          public class JediDatabaseHelper extends SQLiteOpenHelper {
+              private static final String DATABASE_NAME = "jedi_local.db";
+              private static final int DATABASE_VERSION = 1;
+
+              public JediDatabaseHelper(Context context) {
+                  super(context, DATABASE_NAME, null, DATABASE_VERSION);
+              }
+
+              @Override
+              public void onCreate(SQLiteDatabase db) {
+                  db.execSQL("CREATE TABLE chat_history (_id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL, content TEXT NOT NULL, timestamp INTEGER NOT NULL);");
+                  db.execSQL("CREATE TABLE personal_memory (mem_key TEXT PRIMARY KEY, mem_value TEXT NOT NULL, updated_at INTEGER NOT NULL);");
+              }
+
+              @Override
+              public void onUpgrade(SQLiteDatabase db, int o, int n) {
+                  db.execSQL("DROP TABLE IF EXISTS chat_history");
+                  db.execSQL("DROP TABLE IF EXISTS personal_memory");
+                  onCreate(db);
+              }
+
+              public synchronized void insertMessage(String role, String content) {
+                  SQLiteDatabase db = getWritableDatabase();
+                  ContentValues cv = new ContentValues();
+                  cv.put("role", role);
+                  cv.put("content", content);
+                  cv.put("timestamp", System.currentTimeMillis());
+                  db.insert("chat_history", null, cv);
+              }
+
+              public synchronized List<ChatMessage> getRecentChat(int limit) {
+                  List<ChatMessage> list = new ArrayList<>();
+                  SQLiteDatabase db = getReadableDatabase();
+                  Cursor c = db.query("chat_history", null, null, null, null, null, "timestamp DESC", String.valueOf(limit));
+                  if (c != null && c.moveToFirst()) {
+                      do {
+                          list.add(0, new ChatMessage(c.getLong(0), c.getString(1), c.getString(2), c.getLong(3)));
+                      } while (c.moveToNext());
+                      c.close();
+                  }
+                  return list;
+              }
+
+              public synchronized void pruneChatHistory(int days) {
+                  long threshold = System.currentTimeMillis() - (days * 86400000L);
+                  getWritableDatabase().delete("chat_history", "timestamp < ?", new String[]{String.valueOf(threshold)});
+              }
+
+              public synchronized void setMemory(String k, String v) {
+                  ContentValues cv = new ContentValues();
+                  cv.put("mem_key", k.trim().toLowerCase());
+                  cv.put("mem_value", v.trim());
+                  cv.put("updated_at", System.currentTimeMillis());
+                  getWritableDatabase().insertWithOnConflict("personal_memory", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+              }
+
+              public synchronized String getMemory(String k) {
+                  Cursor c = getReadableDatabase().query("personal_memory", new String[]{"mem_value"}, "mem_key = ?", new String[]{k.trim().toLowerCase()}, null, null, null);
+                  String r = null;
+                  if (c != null && c.moveToFirst()) {
+                      r = c.getString(0);
+                      c.close();
+                  }
+                  return r;
+              }
+
+              public synchronized String getAllMemoriesAsContext() {
+                  Cursor c = getReadableDatabase().query("personal_memory", null, null, null, null, null, null);
+                  StringBuilder sb = new StringBuilder();
+                  if (c != null && c.moveToFirst()) {
+                      do {
+                          sb.append("- ").append(c.getString(0)).append(": ").append(c.getString(1)).append("\n");
+                      } while (c.moveToNext());
+                      c.close();
+                  }
+                  return sb.toString();
+              }
+
+              public static class ChatMessage {
+                  public long id;
+                  public String role, content;
+                  public long timestamp;
+                  public ChatMessage(long id, String r, String c, long t) { this.id = id; this.role = r; this.content = c; this.timestamp = t; }
+              }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/agent/AgentTool.java
+          package com.fahad.jedi.agent;
+          import org.json.JSONObject;
+
+          public interface AgentTool {
+              String getName();
+              String getDescription();
+              JSONObject getParametersSchema();
+              ToolResult execute(JSONObject arguments);
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/agent/ToolResult.java
+          package com.fahad.jedi.agent;
+
+          public class ToolResult {
+              private final boolean success;
+              private final String message;
+
+              public ToolResult(boolean success, String message) {
+                  this.success = success;
+                  this.message = message;
+              }
+
+              public boolean isSuccess() { return success; }
+              public String getMessage() { return message; }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/agent/DeviceControlTools.java
+          package com.fahad.jedi.agent;
+
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.hardware.camera2.CameraManager;
+          import android.media.AudioManager;
+          import android.net.Uri;
+          import android.provider.Settings;
+          import org.json.JSONObject;
+
+          public class DeviceControlTools {
+
+              public static class OpenAppTool implements AgentTool {
+                  private final Context context;
+                  public OpenAppTool(Context context) { this.context = context; }
+                  public String getName() { return "open_application"; }
+                  public String getDescription() { return "Opens an application installed on the Android device."; }
+                  public JSONObject getParametersSchema() {
+                      try { return new JSONObject("{\"type\":\"object\",\"properties\":{\"app_name\":{\"type\":\"string\"}},\"required\":[\"app_name\"]}"); } catch (Exception e) { return new JSONObject(); }
+                  }
+                  public ToolResult execute(JSONObject arguments) {
+                      String app = arguments.optString("app_name", "").toLowerCase();
+                      PackageManager pm = context.getPackageManager();
+                      if (app.contains("youtube")) {
+                          Intent i = pm.getLaunchIntentForPackage("com.google.android.youtube");
+                          if (i != null) { i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(i); return new ToolResult(true, "YouTube open ho raha hai."); }
+                      } else if (app.contains("settings")) {
+                          Intent i = new Intent(Settings.ACTION_SETTINGS);
+                          i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(i); return new ToolResult(true, "Settings open ho chuki hain.");
+                      }
+                      Intent general = pm.getLaunchIntentForPackage(app);
+                      if (general != null) { general.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); context.startActivity(general); return new ToolResult(true, app + " khol di gayi hai."); }
+                      return new ToolResult(false, "Application '" + app + "' nahi mili.");
+                  }
+              }
+
+              public static class FlashlightTool implements AgentTool {
+                  private final Context context;
+                  public FlashlightTool(Context context) { this.context = context; }
+                  public String getName() { return "control_flashlight"; }
+                  public String getDescription() { return "Turn flashlight ON or OFF."; }
+                  public JSONObject getParametersSchema() {
+                      try { return new JSONObject("{\"type\":\"object\",\"properties\":{\"state\":{\"type\":\"string\",\"enum\":[\"on\",\"off\"]}},\"required\":[\"state\"]}"); } catch (Exception e) { return new JSONObject(); }
+                  }
+                  public ToolResult execute(JSONObject arguments) {
+                      try {
+                          CameraManager cm = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+                          boolean turnOn = arguments.optString("state", "off").equalsIgnoreCase("on");
+                          cm.setTorchMode(cm.getCameraIdList()[0], turnOn);
+                          return new ToolResult(true, "Flashlight turned " + (turnOn ? "ON." : "OFF."));
+                      } catch (Exception e) {
+                          return new ToolResult(false, "Flashlight error: " + e.getMessage());
+                      }
+                  }
+              }
+
+              public static class VolumeTool implements AgentTool {
+                  private final Context context;
+                  public VolumeTool(Context context) { this.context = context; }
+                  public String getName() { return "control_volume"; }
+                  public String getDescription() { return "Adjust media volume."; }
+                  public JSONObject getParametersSchema() {
+                      try { return new JSONObject("{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"mute\",\"max\",\"up\",\"down\"]}},\"required\":[\"action\"]}"); } catch (Exception e) { return new JSONObject(); }
+                  }
+                  public ToolResult execute(JSONObject arguments) {
+                      AudioManager am = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+                      if (am == null) return new ToolResult(false, "Audio service unavailable.");
+                      int max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                      int cur = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                      String act = arguments.optString("action", "up");
+                      if (act.equals("max")) am.setStreamVolume(AudioManager.STREAM_MUSIC, max, AudioManager.FLAG_SHOW_UI);
+                      else if (act.equals("mute")) am.setStreamVolume(AudioManager.STREAM_MUSIC, 0, AudioManager.FLAG_SHOW_UI);
+                      else if (act.equals("down")) am.setStreamVolume(AudioManager.STREAM_MUSIC, Math.max(0, cur - 2), AudioManager.FLAG_SHOW_UI);
+                      else am.setStreamVolume(AudioManager.STREAM_MUSIC, Math.min(max, cur + 2), AudioManager.FLAG_SHOW_UI);
+                      return new ToolResult(true, "Volume adjust kar di gayi hai.");
+                  }
+              }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/research/WebSearchService.java
+          package com.fahad.jedi.research;
+
+          import com.fahad.jedi.agent.AgentTool;
+          import com.fahad.jedi.agent.ToolResult;
+          import java.net.URLEncoder;
+          import java.nio.charset.StandardCharsets;
+          import java.util.concurrent.TimeUnit;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
+          import okhttp3.OkHttpClient;
+          import okhttp3.Request;
+          import okhttp3.Response;
+          import org.json.JSONObject;
+
+          public class WebSearchService implements AgentTool {
+              private final OkHttpClient client = new OkHttpClient.Builder().connectTimeout(12, TimeUnit.SECONDS).readTimeout(12, TimeUnit.SECONDS).build();
+
+              public String getName() { return "search_web"; }
+              public String getDescription() { return "Live web search for news and facts."; }
+              public JSONObject getParametersSchema() {
+                  try { return new JSONObject("{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"}},\"required\":[\"query\"]}"); } catch (Exception e) { return new JSONObject(); }
+              }
+              public ToolResult execute(JSONObject arguments) {
+                  try {
+                      String q = URLEncoder.encode(arguments.optString("query", ""), StandardCharsets.UTF_8.toString());
+                      Request req = new Request.Builder().url("https://html.duckduckgo.com/html/?q=" + q).header("User-Agent", "Mozilla/5.0").build();
+                      try (Response res = client.newCall(req).execute()) {
+                          if (!res.isSuccessful() || res.body() == null) return new ToolResult(false, "Search failed.");
+                          Matcher m = Pattern.compile("class=\"result__snippet\"[^>]*>(.*?)</a>", Pattern.DOTALL).matcher(res.body().string());
+                          StringBuilder sb = new StringBuilder();
+                          int c = 0;
+                          while (m.find() && c < 3) {
+                              c++;
+                              sb.append(c).append(". ").append(m.group(1).replaceAll("<[^>]*>", "").replaceAll("&quot;", "\"")).append("\n");
+                          }
+                          return new ToolResult(true, sb.length() > 0 ? sb.toString() : "No results found.");
+                      }
+                  } catch (Exception e) { return new ToolResult(false, "Search error: " + e.getMessage()); }
+              }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/agent/ToolRegistry.java
+          package com.fahad.jedi.agent;
+
+          import android.content.Context;
+          import com.fahad.jedi.research.WebSearchService;
+          import java.util.HashMap;
+          import java.util.Map;
+
+          public class ToolRegistry {
+              private final Map<String, AgentTool> tools = new HashMap<>();
+
+              public ToolRegistry(Context ctx) {
+                  register(new DeviceControlTools.OpenAppTool(ctx));
+                  register(new DeviceControlTools.FlashlightTool(ctx));
+                  register(new DeviceControlTools.VolumeTool(ctx));
+                  register(new WebSearchService());
+              }
+
+              public void register(AgentTool tool) { tools.put(tool.getName(), tool); }
+              public AgentTool get(String name) { return tools.get(name); }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/agent/GeminiAgentPlanner.java
+          package com.fahad.jedi.agent;
+
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import com.fahad.jedi.data.JediDatabaseHelper;
+          import java.util.concurrent.TimeUnit;
+          import okhttp3.*;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          public class GeminiAgentPlanner {
+              private final Context context;
+              private final ToolRegistry registry;
+              private final JediDatabaseHelper db;
+              private final OkHttpClient client = new OkHttpClient.Builder().connectTimeout(25, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build();
+
+              public interface AgentCallback {
+                  void onProgress(String s);
+                  void onComplete(String res);
+                  void onError(String err);
+              }
+
+              public GeminiAgentPlanner(Context ctx, ToolRegistry reg, JediDatabaseHelper db) {
+                  this.context = ctx; this.registry = reg; this.db = db;
+              }
+
+              public void processUserRequest(String input, AgentCallback cb) {
+                  SharedPreferences sp = context.getSharedPreferences("jedi_prefs", Context.MODE_PRIVATE);
+                  String apiKey = sp.getString("gemini_api_key", "");
+
+                  if (input.toLowerCase().startsWith("mera naam") && input.toLowerCase().contains("yaad")) {
+                      String name = input.replaceAll("(?i).*yaad rakho (ke )?mera naam", "").trim();
+                      db.setMemory("user_name", name);
+                      cb.onComplete("Aapka naam " + name + " yaad rakh liya gaya hai.");
+                      return;
+                  } else if (input.equalsIgnoreCase("mera naam kya hai") || input.equalsIgnoreCase("mera naam kya hai?")) {
+                      String name = db.getMemory("user_name");
+                      cb.onComplete(name != null ? "Aapka naam " + name + " hai." : "Mujhe aapka naam nahi maloom.");
+                      return;
+                  }
+
+                  if (apiKey.isEmpty()) {
+                      cb.onError("Settings mein ja kar apni Gemini API Key darj karein.");
+                      return;
+                  }
+
+                  new Thread(() -> {
+                      try {
+                          cb.onProgress("Processing...");
+                          JSONObject payload = new JSONObject();
+                          JSONObject contents = new JSONObject().put("role", "user");
+                          contents.put("parts", new JSONArray().put(new JSONObject().put("text", input)));
+                          payload.put("contents", new JSONArray().put(contents));
+
+                          String prompt = "You are JEDI, personal AI assistant. Understand Roman Urdu and Urdu. Context: " + db.getAllMemoriesAsContext();
+                          payload.put("systemInstruction", new JSONObject().put("parts", new JSONArray().put(new JSONObject().put("text", prompt))));
+
+                          Request req = new Request.Builder()
+                                  .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey)
+                                  .post(RequestBody.create(payload.toString(), MediaType.get("application/json")))
+                                  .build();
+
+                          try (Response res = client.newCall(req).execute()) {
+                              if (!res.isSuccessful() || res.body() == null) { cb.onError("HTTP " + res.code()); return; }
+                              JSONObject json = new JSONObject(res.body().string());
+                              String text = json.getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text");
+                              db.insertMessage("user", input);
+                              db.insertMessage("assistant", text);
+                              cb.onComplete(text);
+                          }
+                      } catch (Exception e) { cb.onError(e.getMessage()); }
+                  }).start();
+              }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/voice/VoiceController.java
+          package com.fahad.jedi.voice;
+
+          import android.content.Context;
+          import android.content.Intent;
+          import android.os.Bundle;
+          import android.speech.RecognitionListener;
+          import android.speech.RecognizerIntent;
+          import android.speech.SpeechRecognizer;
+          import android.speech.tts.TextToSpeech;
+          import java.util.ArrayList;
+          import java.util.Locale;
+
+          public class VoiceController {
+              public interface VoiceCallback {
+                  void onListeningStarted();
+                  void onSpeechRecognized(String text);
+                  void onSpeakingDone();
+                  void onError(String msg);
+              }
+
+              private final Context context;
+              private final VoiceCallback callback;
+              private SpeechRecognizer speechRecognizer;
+              private TextToSpeech tts;
+
+              public VoiceController(Context ctx, VoiceCallback cb) {
+                  this.context = ctx; this.callback = cb;
+                  tts = new TextToSpeech(ctx, status -> {
+                      if (status == TextToSpeech.SUCCESS) {
+                          if (tts.setLanguage(new Locale("ur", "PK")) == TextToSpeech.LANG_NOT_SUPPORTED) {
+                              tts.setLanguage(Locale.US);
+                          }
+                      }
+                  });
+              }
+
+              public void startListening() {
+                  if (speechRecognizer == null) speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context);
+                  Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                  intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                  intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ur-PK");
+                  speechRecognizer.setRecognitionListener(new RecognitionListener() {
+                      public void onReadyForSpeech(Bundle p) { callback.onListeningStarted(); }
+                      public void onResults(Bundle r) {
+                          ArrayList<String> m = r.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                          if (m != null && !m.isEmpty()) callback.onSpeechRecognized(m.get(0));
+                      }
+                      public void onError(int e) { callback.onError("Mic error: " + e); }
+                      public void onBeginningOfSpeech() {}
+                      public void onRmsChanged(float r) {}
+                      public void onBufferReceived(byte[] b) {}
+                      public void onEndOfSpeech() {}
+                      public void onPartialResults(Bundle p) {}
+                      public void onEvent(int t, Bundle p) {}
+                  });
+                  speechRecognizer.startListening(intent);
+              }
+
+              public void stopListening() { if (speechRecognizer != null) speechRecognizer.stopListening(); }
+
+              public void speak(String txt) {
+                  if (tts != null) tts.speak(txt, TextToSpeech.QUEUE_FLUSH, null, "JEDI");
+              }
+
+              public void destroy() {
+                  if (speechRecognizer != null) speechRecognizer.destroy();
+                  if (tts != null) { tts.stop(); tts.shutdown(); }
+              }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/ui/OrbView.java
+          package com.fahad.jedi.ui;
+
+          import android.content.Context;
+          import android.graphics.*;
+          import android.util.AttributeSet;
+          import android.view.View;
+
+          public class OrbView extends View {
+              public enum State { IDLE, LISTENING, PROCESSING, SPEAKING, ERROR }
+              private State state = State.IDLE;
+              private final Paint paintOrb = new Paint(Paint.ANTI_ALIAS_FLAG);
+              private float phase = 0f;
+
+              public OrbView(Context c) { super(c); }
+              public OrbView(Context c, AttributeSet a) { super(c, a); }
+
+              public void setState(State s) { this.state = s; postInvalidate(); }
+
+              @Override
+              protected void onDraw(Canvas canvas) {
+                  super.onDraw(canvas);
+                  float cx = getWidth() / 2f, cy = getHeight() / 2f;
+                  float r = Math.min(cx, cy) * 0.45f;
+                  phase += 0.05f;
+
+                  int color = Color.parseColor("#00E5FF");
+                  if (state == State.PROCESSING) color = Color.parseColor("#9D00FF");
+                  else if (state == State.SPEAKING) color = Color.parseColor("#00FF88");
+                  else if (state == State.ERROR) color = Color.parseColor("#FF3B30");
+
+                  paintOrb.setShader(new RadialGradient(cx, cy, r + 15, new int[]{Color.WHITE, color, Color.TRANSPARENT}, new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+                  canvas.drawCircle(cx, cy, r + (float)Math.sin(phase)*8f, paintOrb);
+                  postInvalidateDelayed(16);
+              }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/ui/MainActivity.java
+          package com.fahad.jedi.ui;
+
+          import android.Manifest;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.os.Bundle;
+          import android.widget.ImageButton;
+          import android.widget.TextView;
+          import androidx.appcompat.app.AppCompatActivity;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+          import com.fahad.jedi.R;
+          import com.fahad.jedi.agent.GeminiAgentPlanner;
+          import com.fahad.jedi.agent.ToolRegistry;
+          import com.fahad.jedi.data.JediDatabaseHelper;
+          import com.fahad.jedi.voice.VoiceController;
+
+          public class MainActivity extends AppCompatActivity implements VoiceController.VoiceCallback {
+              private OrbView orb;
+              private TextView txtStatus;
+              private VoiceController voice;
+              private GeminiAgentPlanner planner;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+
+                  orb = findViewById(R.id.orbView);
+                  txtStatus = findViewById(R.id.txtStatus);
+                  ImageButton btnMic = findViewById(R.id.btnMic);
+                  ImageButton btnChat = findViewById(R.id.btnOpenChat);
+                  ImageButton btnSet = findViewById(R.id.btnSettings);
+
+                  voice = new VoiceController(this, this);
+                  planner = new GeminiAgentPlanner(this, new ToolRegistry(this), new JediDatabaseHelper(this));
+
+                  btnMic.setOnClickListener(v -> {
+                      if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                          voice.startListening();
+                      } else {
+                          ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, 101);
+                      }
+                  });
+
+                  btnChat.setOnClickListener(v -> startActivity(new Intent(this, ChatActivity.class)));
+                  btnSet.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
+              }
+
+              public void onListeningStarted() { runOnUiThread(() -> { orb.setState(OrbView.State.LISTENING); txtStatus.setText("Listening..."); }); }
+              public void onSpeechRecognized(String text) {
+                  runOnUiThread(() -> { orb.setState(OrbView.State.PROCESSING); txtStatus.setText(text); });
+                  planner.processUserRequest(text, new GeminiAgentPlanner.AgentCallback() {
+                      public void onProgress(String s) { runOnUiThread(() -> txtStatus.setText(s)); }
+                      public void onComplete(String res) {
+                          runOnUiThread(() -> { orb.setState(OrbView.State.SPEAKING); txtStatus.setText(res); voice.speak(res); });
+                      }
+                      public void onError(String err) { runOnUiThread(() -> { orb.setState(OrbView.State.ERROR); txtStatus.setText(err); }); }
+                  });
+              }
+              public void onSpeakingDone() { runOnUiThread(() -> { orb.setState(OrbView.State.IDLE); txtStatus.setText("JEDI Standby"); }); }
+              public void onError(String msg) { runOnUiThread(() -> { orb.setState(OrbView.State.ERROR); txtStatus.setText(msg); }); }
+
+              @Override
+              protected void onDestroy() { super.onDestroy(); voice.destroy(); }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/ui/ChatActivity.java
+          package com.fahad.jedi.ui;
+
+          import android.os.Bundle;
+          import android.view.LayoutInflater;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.*;
+          import androidx.annotation.NonNull;
+          import androidx.appcompat.app.AppCompatActivity;
+          import androidx.recyclerview.widget.LinearLayoutManager;
+          import androidx.recyclerview.widget.RecyclerView;
+          import com.fahad.jedi.R;
+          import com.fahad.jedi.agent.GeminiAgentPlanner;
+          import com.fahad.jedi.agent.ToolRegistry;
+          import com.fahad.jedi.data.JediDatabaseHelper;
+          import java.util.ArrayList;
+          import java.util.List;
+
+          public class ChatActivity extends AppCompatActivity {
+              private final List<JediDatabaseHelper.ChatMessage> list = new ArrayList<>();
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_chat);
+
+                  JediDatabaseHelper db = new JediDatabaseHelper(this);
+                  GeminiAgentPlanner planner = new GeminiAgentPlanner(this, new ToolRegistry(this), db);
+
+                  RecyclerView rv = findViewById(R.id.recyclerMessages);
+                  EditText input = findViewById(R.id.editChatInput);
+                  ImageButton send = findViewById(R.id.btnSend);
+
+                  ChatAdapter adapter = new ChatAdapter(list);
+                  rv.setLayoutManager(new LinearLayoutManager(this));
+                  rv.setAdapter(adapter);
+
+                  list.addAll(db.getRecentChat(50));
+                  adapter.notifyDataSetChanged();
+
+                  send.setOnClickListener(v -> {
+                      String txt = input.getText().toString().trim();
+                      if (!txt.isEmpty()) {
+                          list.add(new JediDatabaseHelper.ChatMessage(0, "user", txt, System.currentTimeMillis()));
+                          adapter.notifyItemInserted(list.size() - 1);
+                          input.setText("");
+                          planner.processUserRequest(txt, new GeminiAgentPlanner.AgentCallback() {
+                              public void onProgress(String s) {}
+                              public void onComplete(String res) {
+                                  runOnUiThread(() -> {
+                                      list.add(new JediDatabaseHelper.ChatMessage(0, "assistant", res, System.currentTimeMillis()));
+                                      adapter.notifyItemInserted(list.size() - 1);
+                                      rv.scrollToPosition(list.size() - 1);
+                                  });
+                              }
+                              public void onError(String err) { runOnUiThread(() -> Toast.makeText(ChatActivity.this, err, Toast.LENGTH_SHORT).show()); }
+                          });
+                      }
+                  });
+              }
+
+              static class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.VH> {
+                  List<JediDatabaseHelper.ChatMessage> data;
+                  ChatAdapter(List<JediDatabaseHelper.ChatMessage> d) { this.data = d; }
+                  @NonNull public VH onCreateViewHolder(@NonNull ViewGroup p, int t) {
+                      return new VH(LayoutInflater.from(p.getContext()).inflate(R.layout.item_chat_message, p, false));
+                  }
+                  public void onBindViewHolder(@NonNull VH h, int pos) {
+                      h.sender.setText(data.get(pos).role.toUpperCase());
+                      h.body.setText(data.get(pos).content);
+                  }
+                  public int getItemCount() { return data.size(); }
+                  static class VH extends RecyclerView.ViewHolder {
+                      TextView sender, body;
+                      VH(View v) { super(v); sender = v.findViewById(R.id.txtSender); body = v.findViewById(R.id.txtBody); }
+                  }
+              }
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/fahad/jedi/ui/SettingsActivity.java
+          package com.fahad.jedi.ui;
+
+          import android.content.SharedPreferences;
+          import android.os.Bundle;
+          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.Toast;
+          import androidx.appcompat.app.AppCompatActivity;
+          import com.fahad.jedi.R;
+
+          public class SettingsActivity extends AppCompatActivity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_settings);
+
+                  EditText editKey = findViewById(R.id.editApiKey);
+                  Button btnSave = findViewById(R.id.btnSaveSettings);
+                  SharedPreferences sp = getSharedPreferences("jedi_prefs", MODE_PRIVATE);
+                  editKey.setText(sp.getString("gemini_api_key", ""));
+
+                  btnSave.setOnClickListener(v -> {
+                      sp.edit().putString("gemini_api_key", editKey.getText().toString().trim()).apply();
+                      Toast.makeText(this, "Key Saved!", Toast.LENGTH_SHORT).show();
+                      finish();
+                  });
+              }
+          }
+          EOF
+
+      - name: Build Android APK with Gradle
+        run: |
+          gradle wrapper --gradle-version 8.7
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK File
+        uses: actions/upload-artifact@v4
+        with:
+          name: JEDI-App-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Release APK Direct Link
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/heads/main')
+        with:
+          tag_name: v1.0.0
+          name: JEDI Assistant v1.0.0
+          files: app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
